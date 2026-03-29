@@ -76,3 +76,4 @@ launchSettings.json
 # Secrets / environment
 *.env
 appsettings.*.local.json
+appsettings.json

@@ -1,4 +1,6 @@
-﻿using Microsoft.AspNetCore.Mvc;
+using Gateway.Api.Models;
+using Gateway.Api.Services;
+using Microsoft.AspNetCore.Mvc;
 
 namespace Gateway.Api.Controllers;
 
@@ -24,6 +26,8 @@ public class DataController : ControllerBase
     public async Task<IActionResult> Get(Guid id)
     {
         var result = await _client.GetAsync(id);
+        if (result is null)
+            return NotFound();
         return Ok(result);
     }
 }

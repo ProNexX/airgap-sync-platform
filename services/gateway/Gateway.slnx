@@ -1,4 +1,0 @@
-<Solution>
-  <Project Path="Gateway.Api/Gateway.Api.csproj" />
-  <Project Path="Gateway.Tests/Gateway.Tests.csproj" />
-</Solution>

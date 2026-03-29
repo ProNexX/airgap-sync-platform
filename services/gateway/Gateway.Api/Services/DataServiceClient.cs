@@ -1,4 +1,4 @@
-﻿namespace Gateway.Api.Services;
+namespace Gateway.Api.Services;
 
 public class DataServiceClient
 {
@@ -13,10 +13,11 @@ public class DataServiceClient
     {
         var response = await _http.PostAsJsonAsync("/data", request);
         response.EnsureSuccessStatusCode();
-        return await response.Content.ReadFromJsonAsync<object>();
+        return await response.Content.ReadFromJsonAsync<object>()
+            ?? throw new InvalidOperationException("Empty response from data service.");
     }
 
-    public async Task<object> GetAsync(Guid id)
+    public async Task<object?> GetAsync(Guid id)
     {
         return await _http.GetFromJsonAsync<object>($"/data/{id}");
     }

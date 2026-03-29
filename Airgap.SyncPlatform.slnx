@@ -1,0 +1,15 @@
+<Solution>
+  <Folder Name="/services/" />
+  <Folder Name="/services/data/">
+    <Project Path="services/data/Data.Api/Data.Api.csproj" />
+  </Folder>
+  <Folder Name="/services/gateway/">
+    <Project Path="services/gateway/Gateway.Api/Gateway.Api.csproj" />
+  </Folder>
+  <Folder Name="/services/shared/">
+    <Project Path="services/shared/Airgap.Persistence/Airgap.Persistence.csproj" />
+  </Folder>
+  <Folder Name="/services/sync/">
+    <Project Path="services/sync/Sync.Api/Sync.Api.csproj" />
+  </Folder>
+</Solution>

@@ -1,10 +1,11 @@
-﻿using Microsoft.AspNetCore.Mvc;
+using Gateway.Api.Services;
+using Microsoft.AspNetCore.Mvc;
 
 namespace Gateway.Api.Controllers;
 
 [ApiController]
 [Route("api/sync")]
-public class SyncController : ControllerBase
+public sealed class SyncController : ControllerBase
 {
     private readonly SyncServiceClient _client;
 
@@ -14,15 +15,15 @@ public class SyncController : ControllerBase
     }
 
     [HttpGet("status")]
-    public async Task<IActionResult> Status()
+    public async Task<IActionResult> Status(CancellationToken cancellationToken)
     {
-        return Ok(await _client.GetStatus());
+        return Ok(await _client.GetStatusAsync(cancellationToken));
     }
 
     [HttpPost("trigger")]
-    public async Task<IActionResult> Trigger()
+    public async Task<IActionResult> Trigger(CancellationToken cancellationToken)
     {
-        await _client.TriggerSync();
+        await _client.TriggerSyncAsync(cancellationToken);
         return Ok();
     }
 }
