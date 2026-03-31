@@ -1,0 +1,114 @@
+@page "/"
+@using Microsoft.AspNetCore.SignalR.Client
+@using SensorDashboard.Models
+@inject IConfiguration Configuration
+@implements IAsyncDisposable
+
+<PageTitle>Sensor live</PageTitle>
+
+<h1>Live sensor telemetry</h1>
+
+<p class="text-muted small">
+    SignalR hub:
+    <code>@_hubUrl</code>
+    · Connection: <strong>@_connectionLabel</strong>
+</p>
+
+@if (!string.IsNullOrEmpty(_lastError))
+{
+    <div class="alert alert-warning">@_lastError</div>
+}
+
+<div class="table-responsive">
+    <table class="table table-striped table-sm align-middle">
+        <thead>
+        <tr>
+            <th>Recorded (UTC)</th>
+            <th>Device</th>
+            <th>Metric</th>
+            <th>Value</th>
+            <th>Unit</th>
+            <th>Event</th>
+        </tr>
+        </thead>
+        <tbody>
+        @foreach (var row in _rows)
+        {
+            <tr>
+                <td>@row.RecordedAt?.ToString("O")</td>
+                <td>@row.DeviceId</td>
+                <td>@row.Metric</td>
+                <td>@row.Value</td>
+                <td>@row.Unit</td>
+                <td><span class="badge bg-secondary">@row.EventType</span></td>
+            </tr>
+        }
+        </tbody>
+    </table>
+</div>
+
+@code {
+    private const int MaxRows = 200;
+
+    private readonly List<StreamedReading> _rows = new();
+    private HubConnection? _hub;
+    private string _hubUrl = "";
+    private string _connectionLabel = "…";
+    private string? _lastError;
+
+    protected override async Task OnInitializedAsync()
+    {
+        _hubUrl = Configuration["Telemetry:HubUrl"] ?? "http://localhost:5051/hubs/telemetry";
+
+        _hub = new HubConnectionBuilder()
+            .WithUrl(_hubUrl)
+            .WithAutomaticReconnect()
+            .Build();
+
+        _hub.Reconnecting += _ =>
+        {
+            _connectionLabel = "Reconnecting…";
+            return InvokeAsync(StateHasChanged);
+        };
+
+        _hub.Reconnected += _ =>
+        {
+            _connectionLabel = "Connected";
+            _lastError = null;
+            return InvokeAsync(StateHasChanged);
+        };
+
+        _hub.Closed += ex =>
+        {
+            _connectionLabel = ex is null ? "Stopped" : "Disconnected";
+            if (ex is not null)
+                _lastError = ex.Message;
+            return InvokeAsync(StateHasChanged);
+        };
+
+        _hub.On<StreamedReading>("SensorReading", async reading =>
+        {
+            _rows.Insert(0, reading);
+            if (_rows.Count > MaxRows)
+                _rows.RemoveAt(_rows.Count - 1);
+            await InvokeAsync(StateHasChanged);
+        });
+
+        try
+        {
+            await _hub.StartAsync();
+            _connectionLabel = "Connected";
+        }
+        catch (Exception ex)
+        {
+            _connectionLabel = "Failed";
+            _lastError = ex.Message;
+        }
+    }
+
+    public async ValueTask DisposeAsync()
+    {
+        if (_hub is not null)
+            await _hub.DisposeAsync();
+    }
+}

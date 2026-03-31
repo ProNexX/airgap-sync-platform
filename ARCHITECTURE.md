@@ -1,13 +1,19 @@
 # Airgap sync platform — system architecture
 
-This repository implements a small **air-gap–style sync platform** in .NET. Clients talk to an **API gateway**. The **data service** owns PostgreSQL, domain data, the **transactional outbox**, and **publishes** outbox messages to Kafka. The **sync service** is a **Kafka consumer** that ingests those events (representing the downstream / receiving side; you can extend it to apply changes elsewhere).
+This repository implements a small **air-gap–style sync platform** in .NET. The **telemetry ingest** service (formerly “sync”) is the **Kafka consumer** on the downstream side; it **streams** decoded sensor events to **Blazor** clients over **SignalR**.
+
+## Naming
+
+- **`Telemetry.Api` / `telemetry-service` (Docker)** — Kafka consumer + **SignalR** hub (`/hubs/telemetry`). A good mental name: **telemetry ingest** or **downstream ingest**.
+- **`clients/SensorDashboard`** — Blazor WebAssembly UI that subscribes to the hub for live rows.
 
 ## High-level diagram
 
 ```mermaid
 flowchart LR
   subgraph clients["Clients"]
-    C[HTTP clients]
+    PY[Python simulator]
+    BZ[Blazor SensorDashboard]
   end
 
   subgraph edge["Edge API"]
@@ -23,57 +29,47 @@ flowchart LR
     K[Kafka]
   end
 
-  subgraph sync_plane["Sync plane"]
-    SY[Sync.Api consumer]
+  subgraph ingest["Telemetry ingest"]
+    TY[Telemetry.Api]
   end
 
-  C --> GW
-  GW -->|REST /data| DS
-  GW -->|REST /sync| SY
+  PY -->|POST /api/sensors/telemetry| GW
+  BZ -->|WebSocket SignalR| TY
+  GW -->|POST /data| DS
+  GW -->|GET /api/telemetry/*| TY
   DS -->|EF Core| PG
   DS -->|outbox relay: poll + produce| K
-  SY -->|subscribe + consume| K
+  TY -->|subscribe + consume| K
 ```
 
-## Write path and outbox
+## Sensor path
 
-1. A client creates data through the gateway (`POST /api/data`), which forwards to the data service (`POST /data`).
-2. The data service persists a **data row** and an **outbox message** in the **same database transaction** (transactional outbox).
-3. The **data service** background publisher claims unprocessed outbox rows, **produces** JSON envelopes to Kafka, then sets **`processed_at_utc`** only after a successful produce.
-4. The **sync service** **consumes** from the same topic (consumer group `sync-service` by default) and can forward or apply work on the other side of an air gap.
+1. **Simulator** (or any client) posts `POST {gateway}/api/sensors/telemetry` with `deviceId`, `metric`, `value`, `unit`, optional `recordedAt` / `clientRequestId`.
+2. Gateway maps that to the existing **`CreateDataRequest`** (`name` = device id, `value` = JSON of metric fields) and calls the data service.
+3. Data service writes **`data_records`** + **`outbox_messages`** in one transaction; the in-process publisher sends envelopes to Kafka and marks `processed_at_utc`.
+4. **Telemetry.Api** consumes the topic, parses **`DataRecordCreated`** payloads into **`StreamedSensorReading`**, and **`Clients.All.SendAsync("SensorReading", …)`**.
+5. **SensorDashboard** connects to **`http://localhost:5051/hubs/telemetry`** (see `wwwroot/appsettings.json`; Docker publishes **5051 → 8080**).
 
-Internal ops on the data service: **`GET/POST /publish/status|trigger`** (outbox backlog + publisher wake). The gateway does not expose these by default.
+Run the Blazor app with the **http** profile so the browser is not **https** while the hub is **http** (avoids mixed-content blocking):
+
+`dotnet run --project clients/SensorDashboard/SensorDashboard.csproj --launch-profile http`
 
 ## Projects
 
 | Project | Role |
 |--------|------|
-| `services/gateway/Gateway.Api` | Public HTTP API; forwards to data and sync services. |
-| `services/data/Data.Api` | REST API for data; PostgreSQL + EF Core; outbox writer; **Kafka producer** (outbox relay). |
-| `services/sync/Sync.Api` | **Kafka consumer**; `GET /sync/status`, `POST /sync/trigger`. |
-| `services/shared/Airgap.Persistence` | Shared EF Core `AppDbContext`, entities, outbox table name. |
+| `services/gateway/Gateway.Api` | `POST /api/sensors/telemetry`, `GET /api/telemetry/status`, `POST /api/telemetry/trigger`, etc. |
+| `services/data/Data.Api` | REST `/data`, PostgreSQL, outbox, Kafka **producer**. |
+| `services/telemetry/Telemetry.Api` | Kafka **consumer**, SignalR hub, `GET /telemetry/status`. |
+| `services/shared/Airgap.Persistence` | EF Core models + `AppDbContext`. |
+| `clients/SensorDashboard` | Blazor WASM live table via SignalR. |
+| `scripts/simulate_sensors.py` | Optional load generator. |
 
 ## Infrastructure (Docker Compose)
 
-- **postgres**: primary database for data and outbox tables.
-- **kafka** + **zookeeper**: event bus for outbox envelopes.
-- **redis**: available for future caching or rate limiting (not wired in code yet).
-
-## Kafka message shape
-
-Each message value is JSON roughly like:
-
-```json
-{
-  "outboxId": 1,
-  "aggregateType": "DataRecord",
-  "aggregateId": "…",
-  "eventType": "DataRecordCreated",
-  "payload": { "id": "…", "name": "…", "value": "…", "clientRequestId": null, "createdAtUtc": "…" },
-  "createdAtUtc": "…"
-}
-```
+- **telemetry-service**: image from `services/telemetry/Telemetry.Api`; port **5051** for browser + Blazor.
+- **postgres**, **kafka**, **zookeeper**, **redis** as before.
 
 ## Solution file
 
-Build and open **`Airgap.SyncPlatform.slnx`** at the repository root.
+**`Airgap.SyncPlatform.slnx`** at the repository root.

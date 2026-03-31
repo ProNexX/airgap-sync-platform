@@ -1,4 +1,7 @@
 <Solution>
+  <Folder Name="/clients/">
+    <Project Path="clients/SensorDashboard/SensorDashboard.csproj" />
+  </Folder>
   <Folder Name="/services/" />
   <Folder Name="/services/data/">
     <Project Path="services/data/Data.Api/Data.Api.csproj" />
@@ -9,7 +12,7 @@
   <Folder Name="/services/shared/">
     <Project Path="services/shared/Airgap.Persistence/Airgap.Persistence.csproj" />
   </Folder>
-  <Folder Name="/services/sync/">
-    <Project Path="services/sync/Sync.Api/Sync.Api.csproj" />
+  <Folder Name="/services/telemetry/">
+    <Project Path="services/telemetry/Telemetry.Api/Telemetry.Api.csproj" />
   </Folder>
 </Solution>

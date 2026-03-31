@@ -44,13 +44,13 @@ builder.Services.AddHttpClient("DataService", client =>
     client.BaseAddress = new Uri("http://data-service:8080");
 });
 
-builder.Services.AddHttpClient("SyncService", client =>
+builder.Services.AddHttpClient("TelemetryService", client =>
 {
-    client.BaseAddress = new Uri("http://sync-service:8080");
+    client.BaseAddress = new Uri("http://telemetry-service:8080");
 });
 
 builder.Services.AddScoped<DataServiceClient>();
-builder.Services.AddScoped<SyncServiceClient>();
+builder.Services.AddScoped<TelemetryServiceClient>();
 
 var app = builder.Build();
 
